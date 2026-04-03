@@ -36,7 +36,7 @@ from pyanaconda.modules.network.utils import (
     guard_by_system_configuration,
     is_nbft_device,
 )
-
+from pyanaconda.modules.network.debian_interfaces import convert_nm_to_debian_interfaces
 log = get_module_logger(__name__)
 
 import gi
@@ -184,6 +184,9 @@ Name={}
             self._copy_prefixdevname_files(self._sysroot)
         self._copy_global_dns_config(self._sysroot)
         self._enable_dnsconfd(self._sysroot)
+
+        # Convert NetworkManager configs to Debian-style interfaces for Ubuntu/Debian compatibility
+        convert_nm_to_debian_interfaces(self._sysroot)
 
     def _write_interface_rename_config(self, root, ifname_option_values, overwrite):
         """Write systemd configuration .link file for interface renaming.

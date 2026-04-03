@@ -182,6 +182,12 @@ class ConfigureNTPTask(Task):
             log.debug("The NTP service is not installed.")
             return
 
+        # Check if this is an OSTree deployment
+        ostree_deployment_path = os.path.join(self._sysroot, "ostree")
+        if os.path.exists(ostree_deployment_path):
+            log.debug("OSTree deployment detected, skipping service enablement")
+            return
+
         if self._ntp_enabled:
             service.enable_service(NTP_SERVICE, root=self._sysroot)
         else:

@@ -344,13 +344,22 @@ class GRUB2(BootLoader):
         # set menu_auto_hide grubenv variable if we should enable menu_auto_hide
         # set boot_success so that the menu is hidden on the boot after install
         if conf.bootloader.menu_auto_hide:
-            rc = util.execWithRedirect(
-                "grub2-editenv",
-                ["-", "set", "menu_auto_hide=1", "boot_success=1"],
-                root=conf.target.system_root
-            )
-            if rc:
-                log.error("failed to set menu_auto_hide=1")
+            # Check if grub2-editenv binary exists before invoking it
+            grub2_editenv_path = conf.target.system_root + "/usr/bin/grub2-editenv"
+            if not os.path.exists(grub2_editenv_path):
+                # Also check alternative path
+                grub2_editenv_path = conf.target.system_root + "/usr/sbin/grub2-editenv"
+
+            if os.path.exists(grub2_editenv_path):
+                rc = util.execWithRedirect(
+                    "grub2-editenv",
+                    ["-", "set", "menu_auto_hide=1", "boot_success=1"],
+                    root=conf.target.system_root
+                )
+                if rc:
+                    log.error("failed to set menu_auto_hide=1")
+            else:
+                log.warning("grub2-editenv binary not found, skipping menu_auto_hide setup")
 
         # now tell grub2 to generate the main configuration file
         rc = util.execWithRedirect(

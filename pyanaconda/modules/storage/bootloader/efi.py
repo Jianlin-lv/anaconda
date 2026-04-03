@@ -191,14 +191,51 @@ class EFIGRUB(EFIBase, GRUB2):
         return "%s/%s" % (self.efi_config_dir, self._config_file)
 
     def write_config(self):
-        rc = util.execWithRedirect(
-            "gen_grub_cfgstub",
-            [self.config_dir, self.efi_config_dir],
-            root=conf.target.system_root,
-        )
+        import shutil
 
-        if rc != 0:
-            raise BootLoaderError("gen_grub_cfgstub script failed")
+        # Check if gen_grub_cfgstub exists (CentOS/RHEL specific)
+        if shutil.which("gen_grub_cfgstub"):
+            rc = util.execWithRedirect(
+                "gen_grub_cfgstub",
+                [self.config_dir, self.efi_config_dir],
+                root=conf.target.system_root,
+            )
+
+            if rc != 0:
+                raise BootLoaderError("gen_grub_cfgstub script failed")
+        else:
+            # Create the EFI stub configuration manually when gen_grub_cfgstub is not available
+            log.info("gen_grub_cfgstub not found, creating EFI config stub manually")
+
+            # Create the EFI config directory if it doesn't exist
+            efi_config_path = join_paths(conf.target.system_root, self.efi_config_dir)
+            os.makedirs(efi_config_path, exist_ok=True)
+
+            # Get the boot partition UUID
+            boot_uuid = self.stage2_device.format.uuid
+            if not boot_uuid:
+                log.warning("Boot partition UUID not found, using fallback search")
+                search_line = "search --no-floppy --set=dev --file /grub2/grub.cfg"
+            else:
+                search_line = f"search --no-floppy --fs-uuid --set=dev {boot_uuid}"
+
+            # Create a simple GRUB configuration stub for EFI
+            efi_grub_cfg = join_paths(efi_config_path, "grub.cfg")
+
+            # Get the relative path from /boot to the grub config directory
+            config_dir_rel = os.path.relpath(self.config_dir, "/boot")
+
+            stub_content = f"""{search_line}
+set prefix=($dev)/{config_dir_rel}
+configfile $prefix/grub.cfg
+"""
+
+            try:
+                with open(efi_grub_cfg, 'w') as f:
+                    f.write(stub_content)
+                log.info("Created EFI GRUB configuration stub at %s", efi_grub_cfg)
+            except OSError as e:
+                raise BootLoaderError(f"Failed to create EFI GRUB config stub: {e}")
 
         super().write_config()
 
